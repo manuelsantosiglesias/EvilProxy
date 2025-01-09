@@ -1,37 +1,36 @@
-# Usar imagen base Debian Bullseye
-FROM debian:bullseye
+FROM debian:stable-slim
 
-# Configurar entorno no interactivo
-ENV DEBIAN_FRONTEND=noninteractive
+ENV SQUID_DIR /usr/local/squid
+ENV C_ICAP_DIR /usr/local/c-icap
 
-# Actualizar repositorios e instalar dependencias
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-    squid-openssl ssl-cert openssl && \
-    rm -rf /var/lib/apt/lists/*
+    apt-get -qq -y install openssl libssl-dev build-essential wget curl net-tools dnsutils tcpdump libcap-dev  && \
+    apt-get clean
 
-# Configurar zona horaria
-RUN ln -fs /usr/share/zoneinfo/Europe/Madrid /etc/localtime && \
-    dpkg-reconfigure --frontend noninteractive tzdata
+# https://www.squid-cache.org/Versions/
+ARG squid_version="6.12"
+RUN wget http://www.squid-cache.org/Versions/v6/squid-${squid_version}.tar.gz && \
+    tar xzvf squid-${squid_version}.tar.gz && \
+    cd squid-${squid_version} && \
+    ./configure --prefix=$SQUID_DIR --with-openssl --enable-ssl-crtd --with-large-files && \
+    make -j4 && \
+    make install
 
-# Crear certificados SSL
-RUN mkdir -p /usr/local/squid3/etc/ && \
-    openssl genrsa -out /usr/local/squid3/etc/site_priv+pub.key 4096 && \
-    openssl req -new -x509 -days 365 -key /usr/local/squid3/etc/site_priv+pub.key -out /usr/local/squid3/etc/site_priv+pub.pem -subj "/C=ES/ST=Province/L=City/O=Organization/OU=Department/CN=squid-proxy" && \
-    chown proxy:proxy /usr/local/squid3/etc/site_priv+pub.* && \
-    chmod 600 /usr/local/squid3/etc/site_priv+pub.*
+# https://c-icap.sourceforge.net/download.html
+ARG c_icap_version="0.6.3"
+RUN wget https://jaist.dl.sourceforge.net/project/c-icap/c-icap/0.6.x/c_icap-${c_icap_version}.tar.gz && \
+    tar xzvf c_icap-${c_icap_version}.tar.gz && \
+    cd c_icap-${c_icap_version} && \
+    ./configure --enable-large-files --enable-lib-compat --prefix=$C_ICAP_DIR && \
+    make -j4 && \
+    make install
 
-# Crear carpeta para certificados dinámicos
-RUN rm -rf /var/spool/squid_ssldb && \
-    mkdir -p /var/spool/squid_ssldb && \
-    chmod -R 700 /var/spool/squid_ssldb && \
-    chown -R proxy:proxy /var/spool/squid_ssldb
-
-# Copiar configuración personalizada
-COPY squid.conf /etc/squid/squid.conf
-
-# Exponer el puerto 3128
 EXPOSE 3128
+EXPOSE 3129
 
-# Comando para iniciar Squid y generar SSL DB en tiempo de ejecución
-RUN /usr/lib/squid/security_file_certgen -c -s /var/spool/squid_ssldb -M 4MB
+# Squid conf
+COPY ./docker/squid.conf /etc/squid.conf
+
+ADD ./docker/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+ENTRYPOINT ["/entrypoint.sh"]

@@ -8,12 +8,18 @@ Personal project that consists of installing a squid proxy with security flaws t
 Create
 docker build -t squid-ssl .
 
-Run modo iterativo -it
-docker run --name squid-container -d squid-ssl
+Abrir consola
+docker run -it --name squid-container squid-ssl /bin/bash
 
 Verificar
 docker ps -a
 docker logs squid-container
 
-Comprobar proxy
-docker exec -it squid-container squid -v
+# Docker manual reinstall
+
+docker stop squid-container
+docker rm squid-container
+docker rmi squid-ssl
+
+docker build -t squid-ssl .
+docker run -it --name squid-container squid-ssl /bin/bash
