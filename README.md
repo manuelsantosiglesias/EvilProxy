@@ -9,7 +9,7 @@ Create
 docker build -t squid-ssl .
 
 Abrir consola
-docker run -it --name squid-container squid-ssl /bin/bash
+docker run -it --net=host --name squid-container squid-ssl /bin/bash
 
 Verificar
 docker ps -a
